@@ -77,7 +77,7 @@ def sc_send(send_title, push_message):
     push_message = urllib.parse.quote_plus(push_message)
     rep = http.get(
 
-        url=f'https://api.day.app/DAEhJcKMaSD3PcPvdxiZj7/{send_title}/{push_message}'
+        url=f'https://api.day.app/11111/{send_title}/{push_message}'
     ).json()
     logger.info(f"推送结果：{rep.get('message')}")
 

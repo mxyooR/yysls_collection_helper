@@ -1,0 +1,10 @@
+flet
+pyuac
+psutil
+pygetwindow
+opencv-python
+mss
+numpy
+easyocr
+keyboard
+pywin32
