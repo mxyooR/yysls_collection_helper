@@ -9,6 +9,7 @@ import asyncio  # 新增导入
 import queue   # 新增导入
 import logging
 import pyuac
+from main import sc_send  # 新增：从main导入sc_send
 
 # 新增自定义日志处理器
 class GUIHandler(logging.Handler):
@@ -54,6 +55,11 @@ class ConfigEditor(ft.Container):
             ],
             value=self.config["Settings"]["need_push"]
         )
+        # 新增推送设备码字段
+        self.push_devicecode = ft.TextField(
+            label="推送设备码",
+            value=self.config["Settings"].get("push_devicecode", "")
+        )
 
     def save_config(self, e):
         self.config["Settings"]["collectible_name"] = self.collectible_name.value
@@ -61,7 +67,8 @@ class ConfigEditor(ft.Container):
         self.config["Settings"]["goods_name_1"] = self.goods_name_1.value
         self.config["Settings"]["goods_name_2"] = self.goods_name_2.value
         self.config["Settings"]["need_push"] = self.need_push.value
-        
+        # 保存新增的推送设备码
+        self.config["Settings"]["push_devicecode"] = self.push_devicecode.value
         with open("config.ini", "w", encoding="utf-8") as configfile:
             self.config.write(configfile)
         self.close_dialog(e)
@@ -76,6 +83,7 @@ class ConfigEditor(ft.Container):
                 self.goods_name_1,
                 self.goods_name_2,
                 self.need_push,
+                self.push_devicecode,
                 # 已移除 ft.ElevatedButton("保存配置", on_click=self.save_config)
             ]
         )
@@ -88,6 +96,7 @@ class CollectorGUI:
         self.page.window.height = 800
         self.page.theme_mode = ft.ThemeMode.LIGHT
         self.last_collect_time = None
+        self.alert_sent = False  # 新增：用于防止重复发送推送通知
 
         # 初始化统计信息
         self.collect_count = 0
@@ -215,13 +224,19 @@ class CollectorGUI:
             self.collect_count = cnt
             self.goods1_count = goods1
             self.goods2_count = goods2
-            #print(cnt, goods1, goods2, last_time)
             self.last_collect_time = last_time  # 更新上次采集时间
             
             if self.last_collect_time:
-                # 修改为将 float 转换为 datetime 对象再计算时间差
                 elapsed = datetime.now() - datetime.fromtimestamp(self.last_collect_time)
-                time_str = f"距离上次采集: {elapsed.seconds // 60}分{elapsed.seconds % 60}秒前"
+                minutes = elapsed.seconds // 60
+                seconds = elapsed.seconds % 60
+                time_str = f"距离上次采集: {minutes}分{seconds}秒前"
+                # 新增：如果距离上次采集超过10分钟且未发送提醒，则调用sc_send推送通知
+                if elapsed.total_seconds() > 600 and not self.alert_sent:
+                    sc_send("采集提醒", "距离上次采集超过10分钟，请检查采集状态")
+                    self.alert_sent = True
+                elif elapsed.total_seconds() <= 600:
+                    self.alert_sent = False
             else:
                 time_str = "尚未开始采集"
             

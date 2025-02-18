@@ -5,6 +5,7 @@ import win32gui
 from logger import logger
 import keyboard
 import time
+import os
 import easyocr  # 添加 easyocr 导入
 
 class FindGoods:
@@ -146,10 +147,16 @@ class FindGoods:
         返回识别到的文字
         """
         if self.ocr_model is None:
-            self.ocr_model = easyocr.Reader(['ch_sim', 'en'])  # 初始化 easyocr.Reader，支持中英文
+            if os.path.isdir("models") and os.listdir("models"):
+                try:
+                    self.ocr_model = easyocr.Reader(['ch_sim', 'en'], model_storage_directory="models/")
+                except Exception as e:
+                    logger.error(f"加载 models 目录下的模型失败，使用默认模型。错误: {e}")
+                    self.ocr_model = easyocr.Reader(['ch_sim', 'en'])
+            else:
+                self.ocr_model = easyocr.Reader(['ch_sim', 'en'])
         results = self.ocr_model.readtext(img, detail=0)
         return " ".join(results)
-        
 
     def find_collectible(self, goods_name: str, debug=False,like_operation=1):
         """

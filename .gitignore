@@ -7,6 +7,11 @@ __pycache__/
 *.so
 *.log
 /logs
+*.ini
+config.ini
+/models
+*.7z
+temp_ignore
 
 # Distribution / packaging
 .Python

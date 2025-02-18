@@ -22,12 +22,12 @@ GOODS_NAME_1 = config["Settings"]["goods_name_1"]
 GOODS_NAME_2 = config["Settings"]["goods_name_2"]
 NEED_PUSH = config["Settings"]["need_push"]
 if NEED_PUSH == "1":
-    PUSH_URL = config["Settings"]["push_url"]
+    PUSH_DEVICECODE = config["Settings"]["push_devicecode"]  # 修改：从config读取 devicecode
 
 
 # 采集次数及状态初始值
 cnt = 0
-cycle = 0
+
 goods1 = 0
 goods2 = 0
 last_collect_time = None  # 新增初始化 last_collect_time
@@ -71,13 +71,13 @@ def get_new_session(**kwargs):
 
 http = get_new_session()
 # Bark
+# 修改 sc_send 函数，不再需要 devicecode 参数，直接使用全局 PUSH_DEVICECODE
 def sc_send(send_title, push_message):
     # make send_title and push_message to url encode
     send_title = urllib.parse.quote_plus(send_title)
     push_message = urllib.parse.quote_plus(push_message)
     rep = http.get(
-
-        url=f'https://api.day.app/11111/{send_title}/{push_message}'
+        url=f'https://api.day.app/{PUSH_DEVICECODE}/{send_title}/{push_message}'
     ).json()
     logger.info(f"推送结果：{rep.get('message')}")
 
@@ -94,7 +94,7 @@ class AutoCollector:
 
     def start(self, debug):
         """启动自动采集"""
-        global cnt, last_collect_time, goods1, goods2, cycle  # 移除collector_running的引用
+        global cnt, last_collect_time, goods1, goods2  # 移除collector_running的引用
         
         is_running = False
         while globals.collector_running:  # 使用globals中的采集控制变量
@@ -106,9 +106,6 @@ class AutoCollector:
                 time.sleep(3)
                 continue    
             result, collected_goods = self.finder.find_collectible(COLLECTIBLE_NAME, debug, LIKE_OPERATION)
-            if cycle >= 1000:
-                logger.error("位置可能偏离，已尝试1000次")
-                sc_send("燕云十六声采集推送","位置可能偏离，已尝试1000次")
             if result == 1:
                 cnt += 1
                 last_collect_time = time.time()
@@ -132,7 +129,7 @@ class AutoCollector:
                     logger.info("未找到可采集物品，继续等待")
                     self.logged_no_collectible = True
                 time.sleep(1)
-                cycle += 1
+
             elif result == 4:
                 logger.info(f"识别到点赞，开始执行离开操作")
                 self.logged_no_collectible = False  # 重置标记
