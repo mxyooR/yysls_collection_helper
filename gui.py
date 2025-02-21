@@ -88,6 +88,51 @@ class ConfigEditor(ft.Container):
             ]
         )
 
+# 修改 StopSettingsEditor，实现分开两个采集阈值
+class StopSettingsEditor(ft.Container):
+    def __init__(self, close_dialog):
+        super().__init__()
+        self.close_dialog = close_dialog
+        self.config = configparser.ConfigParser()
+        self.config.read("config.ini", encoding="utf-8")
+        if "StopSettings" not in self.config:
+            self.config["StopSettings"] = {
+                "stop_after_minutes": "0",
+                "goods1_threshold": "0",
+                "goods2_threshold": "0"
+            }
+        self.stop_minutes = ft.TextField(
+            label="定时停止（分钟，0表示不启用）",
+            value=self.config["StopSettings"].get("stop_after_minutes", "0")
+        )
+        self.goods1_threshold = ft.TextField(
+            label=f"{GOODS_NAME_1}采集阈值（0表示不启用）",
+            value=self.config["StopSettings"].get("goods1_threshold", "0")
+        )
+        self.goods2_threshold = ft.TextField(
+            label=f"{GOODS_NAME_2}采集阈值（0表示不启用）",
+            value=self.config["StopSettings"].get("goods2_threshold", "0")
+        )
+
+    def save_stop_settings(self, e):
+        self.config["StopSettings"]["stop_after_minutes"] = self.stop_minutes.value
+        self.config["StopSettings"]["goods1_threshold"] = self.goods1_threshold.value
+        self.config["StopSettings"]["goods2_threshold"] = self.goods2_threshold.value
+        with open("config.ini", "w", encoding="utf-8") as configfile:
+            self.config.write(configfile)
+        self.close_dialog(e)
+
+    def build(self):
+        return ft.Column(
+            width=400,
+            controls=[
+                self.stop_minutes,
+                self.goods1_threshold,
+                self.goods2_threshold,
+                # 已移除其他按钮，使用下面的行内按钮
+            ]
+        )
+
 class CollectorGUI:
     def __init__(self, page: ft.Page):
         self.page = page
@@ -97,6 +142,7 @@ class CollectorGUI:
         self.page.theme_mode = ft.ThemeMode.LIGHT
         self.last_collect_time = None
         self.alert_sent = False  # 新增：用于防止重复发送推送通知
+        self.start_time = None  # 新增：采集开始时间
 
         # 初始化统计信息
         self.collect_count = 0
@@ -129,6 +175,9 @@ class CollectorGUI:
             f"监控物品: {config['Settings']['goods_name_1']}, {config['Settings']['goods_name_2']}\n"
             f"是否推送: {['否', '是'][int(config['Settings']['need_push'])]}"
         )
+
+        # 在主页面增加定时停止配置按钮
+        self.stop_settings_button = ft.ElevatedButton("定时停止设置", on_click=self.open_stop_settings_editor)
 
         self.setup_ui()
 
@@ -180,7 +229,8 @@ class CollectorGUI:
         # 控制按钮
         control_buttons = ft.Row([
             ft.ElevatedButton("开始采集", on_click=self.start_collecting),
-            ft.ElevatedButton("停止采集", on_click=self.stop_collecting)
+            ft.ElevatedButton("停止采集", on_click=self.stop_collecting),
+            self.stop_settings_button   # 新增按钮
         ], alignment=ft.MainAxisAlignment.CENTER)
 
         self.page.add(
@@ -217,6 +267,28 @@ class CollectorGUI:
         )
         self.page.views.append(config_view)
         self.page.go("/config")
+
+    def open_stop_settings_editor(self, e):
+        def back(e):
+            self.page.views.pop()
+            self.page.update()
+        stop_editor = StopSettingsEditor(back)
+        stop_view = ft.View(
+            route="/stop_settings",
+            controls=[
+                ft.AppBar(title=ft.Text("定时停止设置")),
+                stop_editor.build(),
+                ft.Row(
+                    controls=[
+                        ft.ElevatedButton("返回", on_click=back),
+                        ft.ElevatedButton("保存设置", on_click=stop_editor.save_stop_settings)
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER
+                )
+            ]
+        )
+        self.page.views.append(stop_view)
+        self.page.go("/stop_settings")
         
     def update_stats(self):
         while self.running:
@@ -225,6 +297,33 @@ class CollectorGUI:
             self.goods1_count = goods1
             self.goods2_count = goods2
             self.last_collect_time = last_time  # 更新上次采集时间
+            
+            # 读取定时停止设置
+            config_stop = configparser.ConfigParser()
+            config_stop.read("config.ini", encoding="utf-8")
+            stop_after_minutes = int(config_stop["StopSettings"].get("stop_after_minutes", "0"))
+            goods1_threshold = int(config_stop["StopSettings"].get("goods1_threshold", "0"))
+            goods2_threshold = int(config_stop["StopSettings"].get("goods2_threshold", "0"))
+            
+            if self.start_time:
+                elapsed = datetime.now() - self.start_time
+                minutes = elapsed.seconds // 60
+                seconds = elapsed.seconds % 60
+                time_str = f"采集已进行: {minutes}分{seconds}秒"
+                if stop_after_minutes > 0 and elapsed.total_seconds() >= stop_after_minutes * 60:
+                    sc_send("采集提醒", "达到设定时长，自动停止采集")
+                    self.stop_collecting(None)
+                    time_str += "（已定时停止）"
+                if goods1_threshold > 0 and self.goods1_count >= goods1_threshold:
+                    sc_send("采集提醒", f"达到设定采集{GOODS_NAME_1}掉落物数量，自动停止采集")
+                    self.stop_collecting(None)
+                    time_str += f"（{GOODS_NAME_1}已采集满数量）"
+                elif goods2_threshold > 0 and self.goods2_count >= goods2_threshold:
+                    sc_send("采集提醒", f"达到设定采集{GOODS_NAME_2}掉落物数量，自动停止采集")
+                    self.stop_collecting(None)
+                    time_str += f"（{GOODS_NAME_2}已采集满数量）"
+            else:
+                time_str = "尚未开始采集"
             
             if self.last_collect_time:
                 elapsed = datetime.now() - datetime.fromtimestamp(self.last_collect_time)
@@ -255,6 +354,7 @@ class CollectorGUI:
         if not self.running:
             self.running = True
             globals.collector_running = True  # 重置采集控制变量
+            self.start_time = datetime.now()  # 记录采集开始时间
             self.collector_thread = threading.Thread(target=self.update_stats, daemon=True)
             self.collector_thread.start()
             threading.Thread(target=self.start_collector, daemon=True).start()

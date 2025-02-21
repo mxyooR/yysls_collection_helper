@@ -7,3 +7,8 @@ goods_name_2 = 恶相果
 need_push = 1
 push_devicecode = 1234567890
 
+[StopSettings]
+stop_after_minutes = 0
+goods1_threshold = 5
+goods2_threshold = 0
+
