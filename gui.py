@@ -10,6 +10,7 @@ import queue   # 新增导入
 import logging
 import pyuac
 from main import sc_send  # 新增：从main导入sc_send
+from use_med import start_med as auto_med_start  # 新增导入自动服药接口
 
 # 新增自定义日志处理器
 class GUIHandler(logging.Handler):
@@ -138,7 +139,7 @@ class CollectorGUI:
         self.page = page
         self.page.title = "燕云十六声自动采集器"
         self.page.window.width = 600
-        self.page.window.height = 800
+        self.page.window.height = 900
         self.page.theme_mode = ft.ThemeMode.LIGHT
         self.last_collect_time = None
         self.alert_sent = False  # 新增：用于防止重复发送推送通知
@@ -178,6 +179,18 @@ class CollectorGUI:
 
         # 在主页面增加定时停止配置按钮
         self.stop_settings_button = ft.ElevatedButton("定时停止设置", on_click=self.open_stop_settings_editor)
+
+        # 新增自动服药相关控件和变量
+        self.auto_med_switch = ft.Switch(label="自动服药", value=False, on_change=self.toggle_auto_med)
+        self.auto_med_dropdown = ft.Dropdown(
+            label="选择药品",
+            options=[
+                ft.dropdown.Option("med1", "螺蛳肉"),
+                ft.dropdown.Option("med2", "酱炒田螺")
+            ],
+            value="med1"
+        )
+        self.auto_med_thread = None
 
         self.setup_ui()
 
@@ -232,12 +245,16 @@ class CollectorGUI:
             ft.ElevatedButton("停止采集", on_click=self.stop_collecting),
             self.stop_settings_button   # 新增按钮
         ], alignment=ft.MainAxisAlignment.CENTER)
-
+        auto_med_controls = ft.Row([
+            self.auto_med_switch,
+            self.auto_med_dropdown
+        ], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
         self.page.add(
             ft.Column([
                 config_card,
                 stats_card,
                 control_buttons,
+                auto_med_controls,  # 新增自动服药设置控件
                 log_title,
                 self.log_box
             ], spacing=20)
@@ -364,6 +381,8 @@ class CollectorGUI:
         if self.running:
             self.running = False
             stop_collector()  # 停止主模块采集循环
+            # 如果停止采集，则关闭自动服药功能
+            self.auto_med_switch.value = False
             if self.collector_thread:
                 self.collector_thread.join()
 
@@ -379,6 +398,33 @@ class CollectorGUI:
                 self.page.update()
             except queue.Empty:
                 pass
+
+    def toggle_auto_med(self, e):
+        if self.auto_med_switch.value:  # 开启自动服药
+            self.log_box.value += "启动自动服药功能\n"
+            self.page.update()
+            # 启动新的线程进行定时服药
+            if self.auto_med_thread is None or not self.auto_med_thread.is_alive():
+                self.auto_med_thread = threading.Thread(target=self.auto_med_task, daemon=True)
+                self.auto_med_thread.start()
+        else:
+            self.log_box.value += "关闭自动服药功能\n"
+            self.page.update()
+
+    def auto_med_task(self):
+        # 等待自动采集启动且至少采集一次
+        while (not self.running or self.collect_count < 1) and self.auto_med_switch.value:
+            time.sleep(1)
+        # 当采集开始且至少采集一次后，每10分钟执行自动服药，期间检测开关状态
+        while self.auto_med_switch.value and self.running:
+            self.log_box.value += "自动服药任务执行中...\n"
+            self.page.update()
+            auto_med_start(med=self.auto_med_dropdown.value)
+            # 每10分钟一次
+            for _ in range(600):
+                if not (self.auto_med_switch.value and self.running):
+                    break
+                time.sleep(1)
 
 def main(page: ft.Page):
     CollectorGUI(page)

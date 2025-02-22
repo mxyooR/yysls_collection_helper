@@ -17,6 +17,30 @@ class FindGoods:
         self.ocr_area = None
         self.counter_area = None
 
+
+    def get_window_rect(self, hwnd):
+        """
+        获取窗口的绝对屏幕坐标。
+        返回 (left, top, right, bottom)
+        """
+        # 获取客户端相对坐标
+        client_rect = win32gui.GetClientRect(hwnd)
+
+        # 将 (0,0) 客户端坐标转换为屏幕绝对坐标
+        client_pos_screen = win32gui.ClientToScreen(hwnd, (0, 0))
+        left = client_pos_screen[0]
+        top = client_pos_screen[1]
+
+        # 客户端右下角相对坐标
+        width = client_rect[2] - client_rect[0]
+        height = client_rect[3] - client_rect[1]
+        right = left + width
+        bottom = top + height
+
+        self.client_area_rect = (left, top, right, bottom)
+        #logger.debug(f"客户端区域：{self.client_area_rect}")
+        return self.client_area_rect
+
     def get_ocr_rect(self, hwnd):
         """
         获取窗口的客户端ocr区域、计数区域和总的客户端区域（不包括标题栏和边框）的绝对屏幕坐标。
@@ -63,7 +87,30 @@ class FindGoods:
     
 
 
+    def capture_total_screen(self):
+        """
+        使用 mss 截取游戏窗口的客户端区域（不含标题栏）。
+        返回：截取到的图像、左上角X、左上角Y
+        """
+        hwnd = win32gui.FindWindow(None, self.window_name)  # 用游戏窗口标题获取 hwnd
+        #logger.debug(f"游戏窗口句柄：{hwnd}")
+        if not hwnd:
+            print("未找到游戏窗口")
+            return None, None, None
 
+        # 获取游戏窗口的客户端区域（不包括标题栏）
+        left, top, right, bottom = self.get_window_rect(hwnd)
+        width = right - left
+        height = bottom - top
+
+        with mss.mss() as sct:
+            monitor = {"top": top, "left": left, "width": width, "height": height}
+            screenshot = sct.grab(monitor)
+            img = np.array(screenshot)
+            # 转换颜色格式 BGRA -> BGR
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+
+            return img, left, top
 
 
 
@@ -75,7 +122,7 @@ class FindGoods:
 
     def capture_game_screen(self):
         """
-        使用 mss 截取游戏窗口的客户端区域（不含标题栏）。
+        使用 mss 截取游戏窗口的采集区域（不含标题栏）。
         返回：截取到的图像、左上角X、左上角Y
         """
         hwnd = win32gui.FindWindow(None, self.window_name)  # 用游戏窗口标题获取 hwnd
