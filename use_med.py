@@ -65,6 +65,10 @@ class AutoMed:
         else:
             logger.warning("未匹配到任何工具模板")
 
+
+        img, win_left, win_top = self.finder.capture_total_screen()
+
+
         a=False
         # 4. OCR识别“消耗物”，定位并点击
         if self.finder.ocr_model is None:
