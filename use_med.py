@@ -15,6 +15,12 @@ class AutoMed:
         # 尝试加载 OCR 模型（延迟加载在 finder 中）
         _ = self.finder.ocr(self.finder.capture_game_screen())
 
+    def exit_bag(self):
+        """退出背包"""
+        logger.info("退出背包")
+        keyboard.press_and_release('b')
+        time.sleep(0.5)
+
     def multi_scale_template_match(self, img, template, threshold=0.8):
         """在不同缩放比例下匹配模板，返回最佳匹配的 (max_val, best_loc, best_template)"""
         best_max_val = 0
@@ -46,13 +52,15 @@ class AutoMed:
         #cv2.imwrite('screenshot.png', img)
         if img is None:
             logger.warning("未能截取窗口")
+            self.exit_bag()
             return
 
         # 3. 对图片1进行匹配，尝试tool.png和tool2.png
-        for template_path in ["image/tool.png", "image/tool2.png"]:
+        for template_path in ["image/tool.png", "image/tool2.png","image/tool3.png"]:
             if not os.path.exists(template_path):
                 logger.warning(f"模板不存在: {template_path}")
-                continue
+                self.exit_bag()
+                return
             template = cv2.imread(template_path, cv2.IMREAD_COLOR)
             max_val, best_loc, best_temp = self.multi_scale_template_match(img, template, threshold=0.8)
             if best_loc is not None:
@@ -64,6 +72,8 @@ class AutoMed:
                 break  # 若有一个匹配成功，则跳出循环
         else:
             logger.warning("未匹配到任何工具模板")
+            self.exit_bag()
+            return
 
 
         img, win_left, win_top = self.finder.capture_total_screen()
@@ -96,6 +106,7 @@ class AutoMed:
         
         if not a:
             logger.warning("未找到消耗品")
+            self.exit_bag()
             return
         
         time.sleep(1)
@@ -113,6 +124,7 @@ class AutoMed:
         
         if not os.path.exists(template2_path):
             logger.warning(f"模板图片2不存在: {template2_path}")
+            self.exit_bag()
             return
         else:
             template2 = cv2.imread(template2_path, cv2.IMREAD_COLOR)
@@ -125,6 +137,8 @@ class AutoMed:
                 time.sleep(0.5)
             else:
                 logger.warning("未匹配到模板图片2")
+                self.exit_bag()
+                return
 
 
         # 6. 按下f键
