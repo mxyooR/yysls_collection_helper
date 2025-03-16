@@ -369,9 +369,18 @@ class CollectorGUI:
     def start_collecting(self, e):
         import globals  # 延迟导入全局变量模块
         if not self.running:
-            self.running = True
-            globals.collector_running = True  # 重置采集控制变量
+            # 重置采集计数，避免下次启动采集使用上次数据
+            global cnt, goods1, goods2, last_collect_time
+            cnt = 0
+            goods1 = 0
+            goods2 = 0
+            last_collect_time = None
+            self.collect_count = 0
+            self.goods1_count = 0
+            self.goods2_count = 0
             self.start_time = datetime.now()  # 记录采集开始时间
+            globals.collector_running = True  # 重置采集控制变量
+            self.running = True
             self.collector_thread = threading.Thread(target=self.update_stats, daemon=True)
             self.collector_thread.start()
             threading.Thread(target=self.start_collector, daemon=True).start()
