@@ -159,7 +159,7 @@ class CollectorGUI:
         
         # 新增日志队列及日志显示框
         self.log_queue = queue.Queue()
-        self.log_box = ft.TextField(multiline=True, read_only=True, height=200,scroll_padding=10)
+        self.log_box = ft.TextField(multiline=True, read_only=True, height=200)
         # 添加日志处理器到根日志
         gui_handler = GUIHandler(self.log_queue)
         gui_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s - %(message)s", "%H:%M:%S"))
@@ -439,14 +439,14 @@ def main(page: ft.Page):
     CollectorGUI(page)
 
 if __name__ == "__main__":
-    
+   
     if not pyuac.isUserAdmin():
         pyuac.runAsAdmin()
     else:
-        ft.app(target=main)
+        ft.app(target=main, view=ft.AppView.FLET_APP)
     """
-    ft.app(target=main)
-    """
+    ft.app(target=main, view=ft.AppView.FLET_APP)"
+     """
 
 
 
